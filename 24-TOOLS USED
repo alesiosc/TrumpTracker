@@ -1,0 +1,35 @@
+`PROMPT`
+List all the tools used in this project, including versions where available. Structure your response in the following format:
+    2 
+    3 # Tools Used in [Project Name] Project
+    4 
+    5 ## [Language/Framework] Libraries and Tools
+    6 
+    7 ### Core Libraries
+    8 - **[Tool Name] [Version]** - [Description of purpose]
+    9 - **[Tool Name] [Version]** - [Description of purpose]
+   10 
+   11 ### Development Tools
+   12 - **[Tool Name] [Version]** - [Description of purpose]
+   13 
+   14 ## [Other Relevant Category] Tools
+   15 - **[Tool Name] [Version]** - [Description of purpose]
+   16 
+   17 [Additional categories as needed]
+   18 
+   19 ## What Worked:
+   20 1. **[Tool/Feature]** - [Description of success]
+   21 2. **[Tool/Feature]** - [Description of success]
+   22 
+   23 ## What Didn't Work:
+   24 1. **[Tool/Feature]** - [Description of issue and resolution]
+   25 2. **[Tool/Feature]** - [Description of issue and resolution]
+   26 
+   27 ## [Specific Category] Functions Loaded:
+   28 - **[Specific Tool] [Version]** - [Description of purpose and usage]
+   29 - **[Specific Tool] [Version]** - [Description of purpose and usage]
+   30 
+   31 Format the response as a markdown document with clear headings and bullet points. Include version numbers where available, and provide brief descriptions of each
+          tool's purpose in the project.
+   
+   
