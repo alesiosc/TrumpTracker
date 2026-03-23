@@ -26,4 +26,9 @@ INSTRUCTION ` Update the project status files. Use the current date and time for
    - Append new tools and libraries documentation to the existing content (do not overwrite)
    - Add current project libraries, versions, and implementation details to maintain complete records
 
+**6. Update `20-LAST CONVO.md`:**
+   - Summarize the session in ~300 words formatted as: key decisions made, code patterns established, next steps identified
+   - Format as a system prompt for the next chat session
+   - Include reference to key documents created/modified
+
 ## Pending Tasks from 4-THINGS TO DO.md
