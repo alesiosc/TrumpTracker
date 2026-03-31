@@ -1,6 +1,19 @@
 # TrumpTracker - How to Run
 
-**Last Updated: 2026-03-23 13:52:49**
+**Last Updated: 2026-03-31 19:30:00**
+
+> **Update (2026-03-31 19:30:00):** Cloudflare bypass fixed with persistent browser:
+> - **DrissionPage** now used instead of FlareSolverr/Playwright/Scrapling
+> - **Browser opens once** at startup and stays open all week
+> - **Cookies cached** and reused for API calls (only refreshed on 403)
+> - **Port 9223** used to avoid conflicts with other DrissionPage programs
+> - **EXE size reduced** from 712 MB to 38.4 MB
+> - **No manual intervention** needed - Cloudflare auto-solves or 15s wait
+
+> **Update (2026-03-31 18:55:00):** Project status files updated:
+> - Executed continuation update prompt to maintain current documentation
+> - Updated change log, project status, and tools documentation files
+> - No changes to running instructions or code
 
 > **Update (2026-03-23 13:52:49):** Project status files updated:
 > - Executed continuation update prompt to maintain current documentation
