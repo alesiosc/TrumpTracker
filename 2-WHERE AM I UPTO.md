@@ -175,7 +175,7 @@ Your IP address (90.214.48.87) has been temporarily blocked by Cloudflare due to
 ### Work Completed Before Block:
 1. **Token Extracted Successfully** ✅
    - Extracted auth token from browser localStorage
-   - Token: `bP_2p2Mpdub-0xdhbzgE65A4KLAT7gyOhxI8n-bqzLg`
+   - Token: `[REDACTED]`
    - Added to `.env` as `TRUTH_TOKEN` and `TRUTHSOCIAL_TOKEN`
 
 2. **Hybrid Tracker Created** ✅

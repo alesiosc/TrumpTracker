@@ -198,7 +198,7 @@ if (ariaLabel.includes(', RT:')) return;
 
 ### Work Completed Before Block:
 1. **Token Extraction**: Successfully extracted auth token from browser localStorage
-   - Token: `bP_2p2Mpdub-0xdhbzgE65A4KLAT7gyOhxI8n-bqzLg`
+   - Token: `[REDACTED]`
    - Added to `.env` as both `TRUTH_TOKEN` and `TRUTHSOCIAL_TOKEN`
 
 2. **Created `tracker_hybrid.py`**: New hybrid tracker that:
