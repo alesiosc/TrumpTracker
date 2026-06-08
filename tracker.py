@@ -26,6 +26,7 @@ APP_ENV = os.getenv("ENVIRONMENT", "TEST").upper()
 WEBHOOK_TEST = os.getenv("DISCORD_WEBHOOK_TEST")
 WEBHOOK_PROD = os.getenv("DISCORD_WEBHOOK_PROD")
 WEBHOOK_SECONDARY = os.getenv("DISCORD_WEBHOOK_SECONDARY")  # Additional webhook
+WEBHOOK_PW = os.getenv("DISCORD_WEBHOOK_PW")  # PW webhook
 
 # Check required credentials based on environment
 # Note: OPENROUTER_KEY is no longer required since AI analysis was removed
@@ -48,15 +49,19 @@ WEBHOOKS = [ACTIVE_WEBHOOK]
 if WEBHOOK_SECONDARY:
     WEBHOOKS.append(WEBHOOK_SECONDARY)
     print(f"📡 Secondary webhook configured")
+if WEBHOOK_PW:
+    WEBHOOKS.append(WEBHOOK_PW)
+    print(f"📡 PW webhook configured")
 
 if not all(required_creds):
     print("❌ Error: Missing credentials in .env file.")
     print("Required: TRUTH_USERNAME, TRUTH_PASSWORD")
     exit(1)
 
-print(f"⚙️  Running in {APP_ENV} MODE")
+    print(f"⚙️  Running in {APP_ENV} MODE")
 
 # ─── 2. Initialize Clients ─────────────────────────────────────────────────
+api = None
 print("Logging into Truth Social...")
 try:
     # Try using token first if available (bypasses 403 errors)
@@ -78,12 +83,8 @@ try:
         )
     print("✅ Successfully logged in.")
 except Exception as e:
-    print(f"❌ Connection failed: {e}")
-    print("\n💡 TIP: If you're getting HTTP 403 errors, try one of these solutions:")
-    print("   1. Use the browser-based tracker: python tracker_browser.py")
-    print("   2. Get a fresh token from your browser and add TRUTH_TOKEN to .env")
-    print("   3. Wait a few hours and try again (rate limiting may have reset)")
-    exit(1)
+    print(f"⚠️  Could not log in ({e}) — browser fallback will handle it")
+    api = None
 
 # ─── 3. Helper Functions ───────────────────────────────────────────────────
 
@@ -231,6 +232,21 @@ def _ensure_persistent_browser():
         # Get cookies and user agent
         _refresh_browser_cookies()
         
+        # Open supporting tabs
+        print("  🔗 Opening supporting tabs...")
+        TAB_URLS = [
+            "https://www.tradingview.com/chart/DXfkyRhX/",
+            "https://docs.google.com/spreadsheets/d/16L022YuhgrlxwO3aJgWg1tiWVBchdKqRYCwcxqwSbJ0/edit?gid=688023582#gid=688023582",
+            "https://script.google.com/home/projects/1oCVHEJ_MvygePajMUCqF1D0PZI2Bw6uqi6l7l1D5skaVwo-t92eU0KEI/edit",
+        ]
+        for url in TAB_URLS:
+            try:
+                tab = _browser_page.new_tab(url)
+                time.sleep(2)
+                print(f"     📑 {url[:60]}...")
+            except Exception as e:
+                print(f"     ⚠️  Could not open tab: {e}")
+        
         print("  ✅ Browser ready! Tab will stay open for the week.")
         return True
         
@@ -358,6 +374,10 @@ def fetch_latest_valid(max_scan=10):
     Fetch posts and return the first valid one based on filtering rules.
     Scans up to max_scan posts to find a valid one.
     """
+    if api is None:
+        print("  ⏭️  API unavailable — using browser fallback")
+        return None
+
     try:
         post_gen = api.pull_statuses(username="realDonaldTrump", replies=False, verbose=False)
         
@@ -445,7 +465,12 @@ def send_discord_alert(webhook_url, post_content, post_link, post_timestamp, col
     }
     try:
         requests.post(webhook_url, json=data)
-        print(f"📨 Sent Discord notification to {'PROD' if webhook_url == WEBHOOK_PROD else 'TEST'}")
+        if webhook_url == WEBHOOK_PROD:
+            print(f"📨 Sent Discord notification to PROD")
+        elif webhook_url == WEBHOOK_PW:
+            print(f"📨 Sent Discord notification to PW")
+        else:
+            print(f"📨 Sent Discord notification")
     except Exception as e:
         print(f"❌ Failed to send Discord alert: {e}")
 
@@ -485,6 +510,17 @@ if __name__ == "__main__":
     print("Starting Truth Social tracker. Checking every 2 minutes...\n")
     
     last_seen_id = None
+    # Load last post ID so restarts don't re-spam old content
+    state_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_seen.txt")
+    if os.path.exists(state_file):
+        try:
+            with open(state_file, "r") as f:
+                stored = f.read().strip()
+                if stored:
+                    last_seen_id = stored
+                    print(f"📋 Resuming from last post ID: {last_seen_id}")
+        except Exception as e:
+            print(f"  ⚠️  Could not load tracker state: {e}")
     api_failure_count = 0
     
     while True:
@@ -511,38 +547,36 @@ if __name__ == "__main__":
                 current_id = latest["id"]
                 
                 if last_seen_id is None:
-                    # First run: Process the initial post (don't just store it as baseline)
+                    # First run: send the post so user knows it's working,
+                    # then save last_seen_id so restarts don't re-spam it
                     last_seen_id = current_id
                     print(f"Tracker initialized. Processing first valid post ID: {last_seen_id}")
                     print(f"  Content preview: {latest['clean_content'][:100]}...")
                     
-                    # Send post directly without AI analysis
+                    # Send post to Discord
                     post_link = latest.get('url') or generate_post_link(latest["id"])
-                    print("📬 Sending post to Discord and Truth Social...")
-                    
-                    # Send to all Discord webhooks
+                    print("📬 Sending post to Discord...")
                     for webhook in WEBHOOKS:
                         send_discord_alert(webhook, latest['clean_content'], post_link, latest['created_at'], 15158332, is_market_impact=False)
                     
-                    # Repost to Truth Social (only if API is working)
-                    if APP_ENV == "PRODUCTION":
-                        truth_post_text = f"{post_link}"
-                        try:
-                            if hasattr(api, 'create_status'):
-                                api.create_status(status=truth_post_text)
-                                print("✅ Reposted to Truth Social!")
-                            else:
-                                print("ℹ️  Truth Social repost skipped (API not available)")
-                        except Exception as e:
-                            print(f"⚠️  Failed repost: {e}")
-                    else:
-                        print("ℹ️  Skipped Truth Social repost (TEST MODE)")
+                    # Save ID so restarts don't re-send this same post
+                    try:
+                        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_seen.txt"), "w") as f:
+                            f.write(str(last_seen_id))
+                    except Exception as e:
+                        print(f"  ⚠️  Could not save tracker state: {e}")
                     
-                    print(f"\n✅ Initial post processed. Now watching for new posts...\n")
-                
+                    print(f"\n✅ First run done. Now watching for new posts...\n")
+
                 elif current_id != last_seen_id:
                     print(f"[{latest['created_at']}] New valid post detected!")
                     last_seen_id = current_id
+                    # Save so restarts don't re-send this one
+                    try:
+                        with open(state_file, "w") as f:
+                            f.write(str(last_seen_id))
+                    except Exception as e:
+                        print(f"  ⚠️  Could not save tracker state: {e}")
                     
                     post_link = latest.get('url') or generate_post_link(latest["id"])
                     print("📬 Sending post to Discord and Truth Social...")

@@ -33,3 +33,25 @@ $PFE (Pfizer Inc), $LLY (Eli Lilly and Co), $JNJ (Johnson & Johnson)
 I hope this project is useful if anyone is thinking of making their own market sentiment analysis bot. Feel free to contact me with any suggestions about improvements or questions.
 
 - Thomas
+
+## Recent Changes
+
+**2026-06-08 — Auto-Open Multi-Tab Browser (4 tabs)**
+
+Modified `_ensure_persistent_browser()` in `tracker.py` so that when the Chromium debug browser starts (port 9223), it automatically opens **4 tabs** instead of 1:
+
+1. **Truth Social** — existing `@realDonaldTrump` feed for scraping
+2. **TradingView Chart** — `DXfkyRhX` live chart for market monitoring  
+3. **Google Sheets** — spreadsheet for trade/data logging
+4. **Google Apps Script** — script editor for automation
+
+This is handled by the existing `trumptracker-watchdog` cron job (every 1 min), which detects if the browser is down, restarts `tracker.py`, and the new code opens all 4 tabs automatically on startup.
+
+Previous fixes in this session:
+- Fixed TV Connect Clicker cron job in `jobs.json` — converted from AI-agent execution to script-based execution to resolve `401 Invalid token` errors (all `no_agent=False` jobs were failing; only script-based jobs worked).
+- Removed duplicate TV Connect Clicker job.
+- Rewrote `tv-connect-clicker.py` to use `websockets` + `urllib` instead of `selenium`, ensuring it runs in the hermes venv.
+
+## Repo
+- **Fork (this repo):** https://github.com/alesiosc/TrumpTracker.git
+- **Original:** https://github.com/DataDriven661/TrumpTracker.git
