@@ -3,10 +3,12 @@ TrumpTracker Watchdog - runs every 1 minute via Scheduled Task.
 Silent when browser+tracker are alive. Restarts what's broken.
 
 Detection:
-  1. Chrome CDP port 9223 alive (the actual browser)
+  1. Chrome CDP port 9224 alive (TrumpTracker's isolated browser)
   2. tracker.py process alive (the scraper loop)
 
-Auto-cleans stale processes and relaunches as needed.
+ISOLATION CONTRACT: owns ONLY port 9224 + its profile. Never touches 9223 /
+D:\\MyPythonProjects_2\\browser_data (trading-daemons). Auto-cleans only
+stale tracker.py processes (by commandline), never a global chrome.exe kill.
 """
 import os
 import subprocess
@@ -20,7 +22,7 @@ VENV_PYTHON = os.path.join(PROJECT_DIR, "venv", "Scripts", "python.exe")
 TRACKER_SCRIPT = os.path.join(PROJECT_DIR, "tracker.py")
 PID_FILE = os.path.join(PROJECT_DIR, "tracker.pid")
 LOG_FILE = os.path.join(PROJECT_DIR, "watchdog_tracker.log")
-PORT = 9223
+PORT = 9224
 
 
 def log(msg):
@@ -130,7 +132,31 @@ def start_browser():
         return False
 
 
+LOCK_FILE = os.path.join(PROJECT_DIR, "watchdog_tracker.lock")
+
+
+def acquire_lock():
+    # Single-instance guard: only one watchdog may manage the 9224 browser at a time.
+    try:
+        fd = os.open(LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+        return True
+    except FileExistsError:
+        return False
+
+
+def release_lock():
+    try:
+        os.remove(LOCK_FILE)
+    except OSError:
+        pass
+
+
 if __name__ == "__main__":
+    if not acquire_lock():
+        # Another watchdog instance holds the lock; exit silently.
+        sys.exit(0)
     try:
         browser_ok = port_in_use(PORT)
 
@@ -141,9 +167,9 @@ if __name__ == "__main__":
             sys.exit(0)
 
         if not browser_ok:
-            log("WATCHDOG: Browser port 9223 is DOWN. Restarting browser...")
+            log("WATCHDOG: Browser port 9224 is DOWN. Restarting browser...")
             if start_browser():
-                log("WATCHDOG: Browser restarted on port 9223")
+                log("WATCHDOG: Browser restarted on port 9224")
             else:
                 log("WATCHDOG: CRITICAL - Failed to restart browser!")
 
@@ -160,3 +186,5 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
+    finally:
+        release_lock()

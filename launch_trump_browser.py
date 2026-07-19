@@ -1,9 +1,9 @@
 ﻿#!/usr/bin/env python3
-"""Launch TrumpTracker debug Chrome on port 9223, independent of tracker.py.
+"""Launch TrumpTracker's isolated Chrome on port 9224 (own profile).
 
-Pattern mirrors launch_mq_browser.py: starts Chrome with --remote-debugging-port,
-a dedicated profile, and the required tabs. Clears crash markers so the
-"Restore pages?" bubble never blocks startup.
+ISOLATION CONTRACT: this launcher owns ONLY port 9224 + its profile. Never touch
+port 9223 / D:\\MyPythonProjects_2\\browser_data (trading-daemons). Opens only
+Truth Social; trading-daemons owns TradingView/Sheets/Apps Script on 9223.
 """
 import os
 import json
@@ -13,15 +13,14 @@ import time
 import urllib.request
 
 CHROME = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-PROFILE = r"C:\Users\Cameron\AppData\Local\Temp\DrissionPage\userData\9223"
+PROFILE = r"D:\MyPythonProjects_2\browser_data_trumptracker"
 PREF_FILE = os.path.join(PROFILE, "Default", "Preferences")
-PORT = 9223
+PORT = 9224
 
+# TrumpTracker owns ONLY Truth Social. Tracker.py creates ChatGPT/X tabs on demand.
+# Trading-daemons owns TradingView/Sheets/Apps Script on port 9223 — do NOT open here.
 TABS = [
     "https://truthsocial.com/@realDonaldTrump",
-    "https://www.tradingview.com/chart/DXfkyRhX/",
-    "https://docs.google.com/spreadsheets/d/16L022YuhgrlxwO3aJgWg1tiWVBchdKqRYCwcxqwSbJ0/edit?gid=688023582#gid=688023582",
-    "https://script.google.com/home/projects/1oCVHEJ_MvygePajMUCqF1D0PZI2Bw6uqi6l7l1D5skaVwo-t92eU0KEI/edit",
 ]
 
 
@@ -48,6 +47,62 @@ def clear_crash_marker():
         print(f"[WARN] could not clear crash marker: {exc!r}")
 
 
+def clear_maximized_state():
+    # Chrome remembers the last window state in Preferences and restores it on
+    # launch, which overrides --start-minimized. Force a normal (non-maximized)
+    # placement so the browser opens minimized to the taskbar, not maximized.
+    try:
+        if not os.path.exists(PREF_FILE):
+            return
+        with open(PREF_FILE, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        wp = data.setdefault("browser", {}).setdefault("window_placement", {})
+        wp["maximized"] = False
+        wp["type"] = "normal"
+        wp["left"] = 0
+        wp["top"] = 0
+        wp["right"] = 420
+        wp["bottom"] = 320
+        with open(PREF_FILE, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        print("[INFO] cleared maximized window state (forced normal/minimized)")
+    except Exception as exc:
+        print(f"[WARN] could not clear maximized state: {exc!r}")
+
+
+def minimize_chrome_window(pid: int) -> None:
+    # Chrome's saved window state can override --start-minimized, so force the
+    # main window minimized via Win32. The window stays as a taskbar icon.
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        SW_MINIMIZE = 6
+        psapi = ctypes.windll.psapi if hasattr(ctypes.windll, "psapi") else None
+        # enumerate windows of this process
+        EnumWindows = user32.EnumWindows
+        GetWindowThreadProcessId = user32.GetWindowThreadProcessId
+        IsWindowVisible = user32.IsWindowVisible
+
+        class Info:
+            found = 0
+
+        def cb(hwnd, lparam):
+            pid_buf = ctypes.c_int(0)
+            GetWindowThreadProcessId(hwnd, ctypes.byref(pid_buf))
+            if pid_buf.value == pid and IsWindowVisible(hwnd):
+                user32.ShowWindowAsync(hwnd, SW_MINIMIZE)
+                Info.found += 1
+            return 1
+
+        EnumWindows(ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.c_int)(cb), 0)
+        if Info.found:
+            print(f"[INFO] minimized Chrome window(s) for PID {pid}")
+        else:
+            print(f"[WARN] no visible Chrome window found to minimize for PID {pid}")
+    except Exception as exc:
+        print(f"[WARN] could not minimize Chrome window: {exc!r}")
+
+
 def launch_chrome():
     if not os.path.exists(CHROME):
         print(f"[ERROR] Chrome not found: {CHROME}")
@@ -55,6 +110,7 @@ def launch_chrome():
 
     os.makedirs(PROFILE, exist_ok=True)
     clear_crash_marker()
+    clear_maximized_state()
 
     args = [
         CHROME,
@@ -62,7 +118,7 @@ def launch_chrome():
         f"--user-data-dir={PROFILE}",
         "--no-first-run",
         "--disable-default-apps",
-        "--start-maximized",
+        "--start-minimized",
         "--new-window",
         "--hide-crash-restore-bubble",
         "--remote-allow-origins=*",
@@ -72,8 +128,9 @@ def launch_chrome():
 
     print(f"[INFO] Launching Chrome on port {PORT}...")
     flags = getattr(subprocess, 'DETACHED_PROCESS', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
-    subprocess.Popen(args, shell=False, creationflags=flags)
+    proc = subprocess.Popen(args, shell=False, creationflags=flags)
     time.sleep(6)
+    minimize_chrome_window(proc.pid)
 
 
 def main():
@@ -94,17 +151,8 @@ def main():
     print(f"[INFO] TrumpTracker debug browser open on port {PORT} with {len(TABS)} tabs:")
     for url in TABS:
         print(f"  - {url}")
-    print("[INFO] tab-keepalive is owned by keep_trump_tabs.py (run separately).")
-
-    # Launch TradingView Connect Watcher (auto-clicks "Connect" popup on TV chart)
-    watcher = r"D:\MyPythonProjects_2\AIO_internals_equities_ma_x3_indicator\docs\13-TS-DASH-v4.0\Module-04 - INDICATORS\tradingview_connect_watcher.py"
-    if os.path.exists(watcher):
-        subprocess.Popen(
-            [sys.executable, watcher],
-            cwd=os.path.dirname(watcher),
-            creationflags=getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
-        )
-        print("[INFO] TradingView Connect Watcher launched.")
+    print("[INFO] Tab enforcement is owned by tracker.py / watchdog_tracker_v2.py (keep_trump_tabs.py stays disabled).")
+    print("[INFO] TradingView Connect Watcher is NOT launched here: the TV chart lives on port 9223 (trading-daemons).")
 
 
 if __name__ == "__main__":
